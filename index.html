@@ -716,9 +716,11 @@ function render(){
   $("#bar").style.width=(clamp(f/(slides.length-1))*100)+"%";
   $("#count").textContent=(cur+1)+" / "+slides.length;
 }
+let animId=0;
 function tween(ms,onFrame,done){
-  locked=true; const t0=performance.now();
+  locked=true; const id=++animId, t0=performance.now();
   (function f(now){
+    if(id!==animId) return;            /* animazione interrotta */
     const t=clamp((now-t0)/ms); onFrame(t); render();
     if(t<1) requestAnimationFrame(f); else {locked=false; if(done) done();}
   })(t0);
@@ -726,6 +728,12 @@ function tween(ms,onFrame,done){
 function tweenP(i,to,ms,done){const from=P[i]; tween(ms,t=>{P[i]=lerp(from,to,t);},done);}
 function moveTo(idx,ms){const from=y,to=idx*VH; tween(ms,t=>{y=lerp(from,to,easeIO(t));});}
 function go(dir){
+  /* indietro: torna SUBITO alla slide precedente, già completa (anche durante un'animazione) */
+  if(dir<0){
+    if(cur>0){ cur--; const pc=CFG[cur]; step=pc.keys.length-1; P[cur]=pc.keys[step]; moveTo(cur,600); }
+    else if(step>0||P[0]!==CFG[0].keys[0]){ animId++; locked=false; step=0; P[0]=CFG[0].keys[0]; render(); }
+    return;
+  }
   if(locked) return;
   const c=CFG[cur];
   if(dir>0){
@@ -733,7 +741,7 @@ function go(dir){
       step++; const to=c.keys[step];
       tweenP(cur,to,Math.max(600,Math.abs(to-P[cur])*c.T));
     }else if(cur<slides.length-1){
-      const next=()=>{cur++; step=0; moveTo(cur,850);};
+      const next=()=>{cur++; step=0; P[cur]=CFG[cur].keys[0]; moveTo(cur,850);};
       if(c.exitP!=null) tweenP(cur,c.exitP,c.exitMs,next); else next();
     }
   }else{
